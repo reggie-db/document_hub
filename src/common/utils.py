@@ -64,9 +64,13 @@ def snake_case(s: str) -> str:
       3. Join with underscores in lowercase
     """
     cleaned = re.sub(r"[^0-9A-Za-z]+", " ", s)
-    split_camel = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", cleaned)
-    parts = split_camel.strip().split()
-    return "_".join(p.lower() for p in parts)
+    split_camel_matches = re.finditer(
+        r'.+?(?:(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)', cleaned
+    )
+    parts = []
+    for m in split_camel_matches:
+        parts.extend(m.group(0).split())
+    return "_".join(p.lower() for p in parts if p)
 
 
 @functools.lru_cache(maxsize=1)
@@ -145,3 +149,5 @@ def trim_to_none(s: Optional[str]) -> Optional[str]:
         s = s.strip()
     return s or None
 
+if __name__ == "__main__":
+    print(snake_case("_thisIsATest#cool_"))

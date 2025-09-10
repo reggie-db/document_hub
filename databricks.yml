@@ -1,6 +1,20 @@
 bundle:
   name: document_hub
 
+variables:
+  catalog:
+
 targets:
   dev:
+    mode: development
     default: true
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+  
+sync:
+  include:
+    - src/**
+
+

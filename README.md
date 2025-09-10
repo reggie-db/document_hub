@@ -4,6 +4,25 @@ This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ing
 
 ## Pipeline Overview
 
+```
++---------------+       +-------------------+       +---------------------+
+|   File        | ----> | Extract MIME Type | ----> | Is Image?           |
+|   Ingested    |       |                   |       |                     |
++---------------+       +-------------------+       +----------+----------+
+                                                                |
+                                                                v
+                                                      +---------------------+
+                                                      | Parse Text from     |
+                                                      | Image               |
+                                                      +---------------------+
+                                                                |
+                                                                v
+                                                      +---------------------+
+                                                      | Sync with Vector    |
+                                                      | Search Index        |
+                                                      +---------------------+
+```
+
 1. Bronze – File Ingest (`file_ingest`)
    - Streams raw files from a Unity Catalog Volume (`/Volumes/<catalog>/<schema>/files`).
    - Computes a content hash.

@@ -25,21 +25,8 @@ This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ing
 - Ensures a Vector Search Endpoint exists (`<catalog>_<schema>_files_search`).
 - Maintains a Delta Sync Index that maps ingested documents to embeddings.
 - Provides semantic search for both supported text-based documents and unsupported formats like images.
-
-## What this repo provides
-
-- A Databricks Bundle that declares:
-  - A Unity Catalog Volume for file ingestion.
-  - A Lakeflow pipeline to ingest → parse → index content.
-  - An optional Job that triggers the pipeline when files arrive in the Volume.
-- Environment dependencies (e.g., vector search client, Magika) configured for the pipeline runtime.
-- Opinionated defaults for dev/prod targets with Unity Catalog governance.
-
-## Prerequisites
-
-- Databricks workspace with Unity Catalog enabled.
-- Permissions to create UC schemas, volumes, pipelines, and Vector Search endpoints.
-- A profile configured in your local Databricks CLI (v0.205+ recommended).
+- First run warm-up: The Vector Search endpoint is created on the first run and may take several minutes to reach the ONLINE state. Index creation and the initial delta sync will not complete until the endpoint is ONLINE, so expect a delay before search becomes available.
+// ... existing code ...
 
 ## Deploy
 
@@ -68,6 +55,10 @@ After deployment, the pipeline and volume will be created in the specified catal
 - Ingest files by placing them in the provisioned Volume:
   - Path: `/Volumes/<catalog_name>/<schema_name>/<volume_name>/`
   - Upload via UI, DBFS CLI, or any supported client.
+
+Note on execution:
+- Automatic kick-off: The pipeline is configured to automatically start when new files are added to the ingestion Volume path above. You can still start or refresh it manually from the UI if needed.
+- Vector Search setup time: On the first run, the Vector Search endpoint and index are provisioned. This can take several minutes; searches won’t be available until provisioning and the initial sync complete.
 
 Once files land in the Volume, the Bronze stream ingests them, the Silver step parses content, and the Gold step prepares and syncs the Vector Search index.
 

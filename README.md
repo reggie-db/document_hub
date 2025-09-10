@@ -1,4 +1,3 @@
-```markdown
 # Document Hub Lakeflow Pipeline
 
 This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ingests, parses, and indexes files for use with a knowledge assistant. It prepares structured content from supported formats (text, PDF, etc.) and leverages Databricks Vector Search to handle unsupported formats such as images.
@@ -77,4 +76,3 @@ Once files land in the Volume, the Bronze stream ingests them, the Silver step p
 - Tables are created and updated via the Databricks event lifecycle (`update_progress`, `flow_progress`).
 - The pipeline can run in development or production modes with Unity Catalog governance.
 - Vector Search endpoint and index are created on first run and kept in sync by the pipeline logic.
-```

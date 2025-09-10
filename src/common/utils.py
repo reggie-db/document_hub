@@ -73,55 +73,6 @@ def snake_case(s: str) -> str:
     return "_".join(p.lower() for p in parts if p)
 
 
-@functools.lru_cache(maxsize=1)
-def current_catalog_schema() -> Tuple[str, str]:
-    """
-    Detect the current Unity Catalog and schema by provoking a resolution error and parsing it.
-
-    Returns:
-        A tuple of (catalog, schema)
-
-    Raises:
-        ValueError: If no catalog or schema can be inferred or multiple are detected.
-    """
-    log = logger()
-    log.info("detecting current catalog and schema")
-    spark = globals().get("spark", None)
-    if not spark:
-        spark = SparkSession.builder.getOrCreate()
-
-    catalog_schemas: set[Tuple[str, str]] = set()
-    msg = ""
-    try:
-        # Intentionally reference a non existent table to surface fully qualified path in error
-        spark.sql(f"SELECT * FROM table_{uuid.uuid4().hex} LIMIT 1").count()
-    except Exception as e:
-        msg = str(e)
-        matches = re.findall(r"`([^`]+)`\.`([^`]+)`\.`([^`]+)`", msg)
-        for c, s, _ in matches:
-            if c and s:
-                catalog_schemas.add((c, s))
-
-    if len(catalog_schemas) == 0:
-        raise ValueError(f"catalog or schema not found - message:{msg}")
-    if len(catalog_schemas) > 1:
-        raise ValueError(
-            f"multiple catalog and schemas found - catalog_schemas:{catalog_schemas} message:{msg}"
-        )
-
-    result = catalog_schemas.pop()
-    log.info("current catalog and schema:%s", result)
-    return result
-
-
-def current_catalog() -> str:
-    """Return the current Unity Catalog name."""
-    return current_catalog_schema()[0]
-
-
-def current_schema() -> str:
-    """Return the current schema name within the Unity Catalog."""
-    return current_catalog_schema()[1]
 
 @F.udf(returnType=T.StringType())
 def os_path(path: Optional[str]) -> Optional[str]:

@@ -19,7 +19,7 @@ from common import utils, vector_search
 
 # ---------- configuration ----------
 NOTEBOOK_PATH = get_context().notebookPath
-FLOW_NAME = f"{utils.current_catalog()}.{utils.current_schema()}.{os.path.splitext(os.path.basename(NOTEBOOK_PATH))[0]}"
+FLOW_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.{os.path.splitext(os.path.basename(NOTEBOOK_PATH))[0]}"
 
 # ---------- vector search setup ----------
 vector_search.endpoint_setup()

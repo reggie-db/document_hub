@@ -6,19 +6,16 @@ This module:
 - Ensures a delta sync index exists and is synced to the source table
 """
 
-
-import time
 import functools
+import time
 from typing import Optional
 
 import dlt
+from common import utils
 from databricks.vector_search.client import VectorSearchClient
 
-from common import utils
-
-
 # ---------- configuration ----------
-SOURCE_TABLE_NAME = f"{utils.current_catalog()}.{utils.current_schema()}.file_index"
+SOURCE_TABLE_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.file_index"
 ENDPOINT_NAME = utils.snake_case(SOURCE_TABLE_NAME) + "_search"
 INDEX_NAME = SOURCE_TABLE_NAME + "_search_index"
 
@@ -34,8 +31,9 @@ def _vector_search_client() -> VectorSearchClient:
     """
     return VectorSearchClient()
 
-def _get_vector_search_endpoint( name: str
-) -> Optional[dict]:
+
+def _get_vector_search_endpoint(name: str
+                                ) -> Optional[dict]:
     """
     Return the endpoint dict if it exists, else None.
 
@@ -46,7 +44,7 @@ def _get_vector_search_endpoint( name: str
     Returns:
         Endpoint payload dict or None if not found.
     """
-    client =_vector_search_client()
+    client = _vector_search_client()
     try:
         return client.get_endpoint(name=name)
     except Exception:
@@ -61,10 +59,10 @@ def endpoint_setup(poll_secs: int = 5) -> None:
     Args:
         poll_secs: Seconds to wait between status checks
     """
-    client =_vector_search_client()
+    client = _vector_search_client()
 
     while True:
-        ep = _get_vector_search_endpoint( ENDPOINT_NAME)
+        ep = _get_vector_search_endpoint(ENDPOINT_NAME)
         if ep:
             state = ep["endpoint_status"]["state"]
             utils.logger().info("%s state: %s", ENDPOINT_NAME, state)
@@ -89,7 +87,7 @@ def delta_sync_index_setup() -> None:
     If the index exists, it will be synced. If it does not, it will be created
     and the function returns after creation completes.
     """
-    client =_vector_search_client()
+    client = _vector_search_client()
     index = None
     try:
         index = client.get_index(ENDPOINT_NAME, INDEX_NAME)
@@ -109,6 +107,6 @@ def delta_sync_index_setup() -> None:
             columns_to_sync=["id", "text", "path", "content_hash"],
         )
     if index:
-        #TODO: Add conditional sync logic
+        # TODO: Add conditional sync logic
         utils.logger().info("syncing vector search delta sync index:%s", index.describe())
         index.sync()

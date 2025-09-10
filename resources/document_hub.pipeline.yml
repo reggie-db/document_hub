@@ -13,6 +13,10 @@ resources:
         dependencies:
           - databricks-vectorsearch
           - magika
+      configuration:
+        catalog_name: ${var.catalog_name}
+        schema_name: ${var.schema_name}
+        volume_name: ${var.volume_name}
       libraries:
         - glob:
             include: ../src/transformations/**

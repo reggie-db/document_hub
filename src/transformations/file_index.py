@@ -21,6 +21,9 @@ from common import utils, vector_search
 NOTEBOOK_PATH = get_context().notebookPath
 FLOW_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.{os.path.splitext(os.path.basename(NOTEBOOK_PATH))[0]}"
 
+utils.logger().info("NOTEBOOK_PATH: %s", NOTEBOOK_PATH)
+utils.logger().info("FLOW_NAME: %s", FLOW_NAME)
+
 # ---------- vector search setup ----------
 vector_search.endpoint_setup()
 

@@ -13,11 +13,17 @@ from typing import Optional
 import dlt
 from common import utils
 from databricks.vector_search.client import VectorSearchClient
+from pyspark.sql import SparkSession
 
 # ---------- configuration ----------
+spark = SparkSession.builder.getOrCreate()
 SOURCE_TABLE_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.file_index"
 ENDPOINT_NAME = utils.snake_case(SOURCE_TABLE_NAME) + "_search"
 INDEX_NAME = SOURCE_TABLE_NAME + "_search_index"
+
+utils.logger().info("SOURCE_TABLE_NAME: %s", SOURCE_TABLE_NAME)
+utils.logger().info("ENDPOINT_NAME: %s", ENDPOINT_NAME)
+utils.logger().info("INDEX_NAME: %s", INDEX_NAME)
 
 
 # ---------- helpers ----------

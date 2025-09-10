@@ -9,11 +9,8 @@ Utilities for Databricks notebooks:
 import logging
 import re
 import sys
-import uuid
-import functools
-from typing import Optional, Tuple
+from typing import Optional
 
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F, types as T
 
 
@@ -73,7 +70,6 @@ def snake_case(s: str) -> str:
     return "_".join(p.lower() for p in parts if p)
 
 
-
 @F.udf(returnType=T.StringType())
 def os_path(path: Optional[str]) -> Optional[str]:
     """
@@ -95,10 +91,11 @@ def trim_to_none(s: Optional[str]) -> Optional[str]:
     Returns None if the resulting string is empty.
     """
     if s:
-        s = re.sub(r"\s+\n", "\n", s)  
+        s = re.sub(r"\s+\n", "\n", s)
         s = re.sub(r"\n{3,}", "\n\n", s)
         s = s.strip()
     return s or None
+
 
 if __name__ == "__main__":
     print(snake_case("_thisIsATest#cool_"))

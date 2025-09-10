@@ -15,7 +15,6 @@ from common import utils
 from databricks.sdk import WorkspaceClient
 from pyspark.sql import functions as F
 
-# ---------- configuration ----------
 
 
 # ---------- UDFs ----------

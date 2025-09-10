@@ -1,0 +1,13 @@
+resources:
+  jobs:
+    document_hub_ingest:
+      name: document_hub_ingest
+
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalog_name}/${var.schema_name}/${var.volume_name}/
+
+      tasks:
+        - task_key: refresh_document_hub
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.document_hub_pipeline.id}

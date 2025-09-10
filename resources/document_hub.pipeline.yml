@@ -1,10 +1,10 @@
 resources:
   pipelines:
-    document_hub:
+    document_hub_pipeline:
       name: document_hub
 
-      catalog: ${var.catalog}
-      schema: document_hub_${bundle.target}
+      catalog: ${var.catalog_name}
+      schema: ${var.schema_name}
       channel: PREVIEW
       serverless: true
       photon: true
@@ -16,4 +16,4 @@ resources:
       libraries:
         - glob:
             include: ../src/transformations/**
-      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/document_hub/${bundle.target}/files/src
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/files/src

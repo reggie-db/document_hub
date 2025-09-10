@@ -25,38 +25,6 @@ utils.logger().info("SOURCE_TABLE_NAME: %s", SOURCE_TABLE_NAME)
 utils.logger().info("ENDPOINT_NAME: %s", ENDPOINT_NAME)
 utils.logger().info("INDEX_NAME: %s", INDEX_NAME)
 
-
-# ---------- helpers ----------
-@functools.lru_cache(maxsize=1)
-def _vector_search_client() -> VectorSearchClient:
-    """
-    Return a cached vector search client.
-
-    Returns:
-        VectorSearchClient instance
-    """
-    return VectorSearchClient()
-
-
-def _get_vector_search_endpoint(name: str
-                                ) -> Optional[dict]:
-    """
-    Return the endpoint dict if it exists, else None.
-
-    Args:
-        client: VectorSearchClient instance
-        name: Endpoint name
-
-    Returns:
-        Endpoint payload dict or None if not found.
-    """
-    client = _vector_search_client()
-    try:
-        return client.get_endpoint(name=name)
-    except Exception:
-        return None
-
-
 # ---------- setup routines ----------
 def endpoint_setup(poll_secs: int = 5) -> None:
     """
@@ -65,7 +33,13 @@ def endpoint_setup(poll_secs: int = 5) -> None:
     Args:
         poll_secs: Seconds to wait between status checks
     """
-    client = _vector_search_client()
+    client = VectorSearchClient()
+
+    def _get_vector_search_endpoint(name: str) -> Optional[dict]:
+        try:
+            return client.get_endpoint(name=name)
+        except Exception:
+            return None
 
     while True:
         ep = _get_vector_search_endpoint(ENDPOINT_NAME)
@@ -93,7 +67,7 @@ def delta_sync_index_setup() -> None:
     If the index exists, it will be synced. If it does not, it will be created
     and the function returns after creation completes.
     """
-    client = _vector_search_client()
+    client = VectorSearchClient()
     index = None
     try:
         index = client.get_index(ENDPOINT_NAME, INDEX_NAME)

@@ -1,0 +1,17 @@
+resources:
+  pipelines:
+    document_hub:
+      name: document_hub
+      libraries:
+        - glob:
+            include: /Workspace/Users/reggie.pierce@databricks.com/document_hub/transformations/**
+      catalog: reggie_pierce
+      channel: PREVIEW
+      environment:
+        dependencies:
+          - databricks-vectorsearch
+          - magika
+      photon: true
+      root_path: /Workspace/Users/reggie.pierce@databricks.com/document_hub
+      schema: document_hub
+      serverless: true

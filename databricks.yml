@@ -1,0 +1,6 @@
+bundle:
+  name: document_hub
+
+targets:
+  dev:
+    default: true

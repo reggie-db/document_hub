@@ -1,8 +1,10 @@
-# Document Hub Lakeflow Pipeline
+# Document Hub
+## Knowledge Assistant and Lakeflow Pipeline Quickstart
+___
 
 This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ingests, parses, and indexes files for use with a knowledge assistant. It prepares structured content from supported formats (text, PDF, etc.) and leverages Databricks Vector Search to handle unsupported formats such as images.
 
-## TL;DR
+### TL;DR
 
 - Clone, deploy, and start using it. Copy and paste the below into a terminal
 ```bash
@@ -17,7 +19,7 @@ After deployment:
 - The index sync runs after transformations, and a knowledge assistant is set up to use the index.
 
 
-## Pipeline Overview
+### Pipeline Overview
 ```
 
 +---------------------------+       +---------------------------+       +---------------------+       +---------------------------+
@@ -51,14 +53,14 @@ After deployment:
    - Creates a knowledge assistant connected to the Vector Search index.
    - Applies description and instruction text so the assistant can answer questions over ingested files.
 
-## Vector Search
+### Vector Search
 
 - Endpoint and index are provisioned before any transformation work starts. This ensures the sync can run immediately after gold data is available.
 - The sync step runs after indexing to populate and refresh embeddings for search.
 - First run warm-up: Endpoint creation can take several minutes to reach the ONLINE state. The initial index sync and search features become available only after the endpoint is ONLINE.
 
 
-## Deploy
+### Deploy
 
 Deploy the bundle to a target with required variables. At minimum, provide a catalog name.
 
@@ -83,7 +85,7 @@ databricks bundle deploy --target prod --var="catalog_name=YOUR_CATALOG" --profi
 ```
 After deployment, the endpoint/index, pipeline, and volume will be created in the specified catalog/schema. The pipeline root path and other workspace paths are set by the bundle.
 
-## Run the pipeline
+### Run the pipeline
 
 - Automatic trigger: The pipeline is configured to automatically start processing when new files are added to the ingestion Volume path:
   - `/Volumes/<catalog_name>/<schema_name>/<volume_name>/`
@@ -96,7 +98,7 @@ Execution flow:
 
 Upload documents via the UI, DBFS CLI, or any supported client. Once files land in the Volume, ingestion begins automatically; the index is synced after gold tables are written, and the assistant is made ready to answer questions.
 
-## Notes
+### Notes
 
 - Tables are created and updated via the Databricks event lifecycle (`update_progress`, `flow_progress`).
 - The pipeline can run in development or production modes with Unity Catalog governance.

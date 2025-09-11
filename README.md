@@ -6,16 +6,10 @@ This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ing
 
 - Clone, deploy, and start using it. Copy and paste the below into a terminal
 ```bash
-# Clone the repo
-git clone https://github.com/reggie-db/document_hub.git
-cd document_hub
-
-# Gather inputs
-read -r -p "Enter your Unity Catalog name: " CATALOG_NAME
-read -r -p "Enter your Databricks CLI profile name: " PROFILE_NAME
-
-# Deploy to dev using the provided values
-databricks bundle deploy --target dev --var="catalog_name=${CATALOG_NAME}" --profile "${PROFILE_NAME}"
+git clone https://github.com/reggie-db/document_hub.git && cd document_hub && \
+printf "Enter your catalog name: " && read CATALOG_NAME && \
+printf "Enter your Databricks CLI profile name: " && read PROFILE_NAME && \
+databricks bundle deploy --target dev --var "catalog_name=${CATALOG_NAME}" --profile "${PROFILE_NAME}"
 ```
 After deployment:
 - Drop files into: /Volumes/<catalog_name>/<schema_name>/<volume_name>/ (defaults to files). The pipeline will automatically start when new files are added.

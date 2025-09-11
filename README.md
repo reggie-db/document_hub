@@ -7,7 +7,7 @@ This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ing
 - Clone, deploy, and start using it. Copy and paste the below into a terminal
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/document_hub.git
+git clone https://github.com/reggie-db/document_hub.git
 cd document_hub
 
 # Gather inputs

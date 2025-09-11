@@ -16,7 +16,6 @@ from databricks.sdk import WorkspaceClient
 from pyspark.sql import functions as F
 
 
-
 # ---------- UDFs ----------
 @F.pandas_udf("mime_type string, extension string")
 def file_info_udf(it: Iterator[pd.Series]) -> Iterator[pd.DataFrame]:
@@ -57,15 +56,15 @@ def file_ingest():
             content_hash: SHA-256 hash of file content
             mime_type, extension: detected file metadata
     """
-    catalog_name: str = spark.conf.get("catalog_name")
-    schema_name: str = spark.conf.get("schema_name")
-    volume_name: str = spark.conf.get("volume_name")
+    catalog_name: str = utils.config_value("catalog_name")
+    schema_name: str = utils.config_value("schema_name")
+    volume_name: str = utils.config_value("volume_name")
 
     return (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "binaryFile")
         .option("recursiveFileLookup", "true")
-        .load( f"/Volumes/{catalog_name}/{schema_name}/{volume_name}")
+        .load(f"/Volumes/{catalog_name}/{schema_name}/{volume_name}")
         .withColumn("content_hash", F.sha2(F.col("content"), 256))
         .drop("content")
         .withColumn("file_info", file_info_udf(utils.os_path(F.col("path"))))

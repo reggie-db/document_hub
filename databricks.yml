@@ -7,6 +7,14 @@ variables:
     default: ${bundle.name}_${bundle.target}
   volume_name:
     default: files
+  knowledge_assistant_description:
+    default: "Answer questions using files and documents ingested into Databricks, including PDFs, Word, text, images, and other documents."
+  knowledge_assistant_instructions:
+    default: ""
+  file_source_description:
+    default: "Variety of unstructured and semi-structured files such as PDFs, Word documents, text files, PowerPoint slides, and other uploaded materials."
+  vector_search_index_description:
+    default: "Managed Vector Index with Delta Sync. ${var.file_source_description}"
 
 targets:
   dev:

@@ -10,8 +10,10 @@ import logging
 import re
 import sys
 from typing import Optional
-
+from pyspark.sql import SparkSession
+from pyspark.dbutils import DBUtils
 from pyspark.sql import functions as F, types as T
+
 
 
 def logger(name: Optional[str] = None) -> logging.Logger:
@@ -50,6 +52,28 @@ def logger(name: Optional[str] = None) -> logging.Logger:
 
     return log
 
+
+def config_value(name: str, default: Optional[str] = None):
+    spark = SparkSession.builder.getOrCreate()
+    dbutils = DBUtils(spark)
+
+    try:
+        value = dbutils.widgets.get(name)
+        if value:
+            return value
+    except Exception:
+        pass
+
+    try:
+        value = spark.conf.get(name)
+        if value:
+            return value
+    except Exception:
+        pass
+
+    if default is not None:
+        return default
+    raise ValueError(f"Missing configuration value: {name}")
 
 def snake_case(s: str) -> str:
     """

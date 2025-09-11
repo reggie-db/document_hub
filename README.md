@@ -2,50 +2,67 @@
 
 This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ingests, parses, and indexes files for use with a knowledge assistant. It prepares structured content from supported formats (text, PDF, etc.) and leverages Databricks Vector Search to handle unsupported formats such as images.
 
+## TL;DR
+
+- Clone, deploy, and start using it. Copy and paste the below into a terminal
+```bash
+# Clone the repo
+git clone https://github.com/your-org/document_hub.git
+cd document_hub
+
+# Gather inputs
+read -r -p "Enter your Unity Catalog name: " CATALOG_NAME
+read -r -p "Enter your Databricks CLI profile name: " PROFILE_NAME
+
+# Deploy to dev using the provided values
+databricks bundle deploy --target dev --var="catalog_name=${CATALOG_NAME}" --profile "${PROFILE_NAME}"
+```
+After deployment:
+- Drop files into: /Volumes/<catalog_name>/<schema_name>/<volume_name>/ (defaults to files). The pipeline will automatically start when new files are added.
+- On first run, the Vector Search endpoint and index are provisioned; this may take several minutes before search is available.
+- The index sync runs after transformations, and a knowledge assistant is set up to use the index.
+
+
 ## Pipeline Overview
-
-```
-+---------------+       +-------------------+       +---------------------+
-|   File        | ----> | Extract MIME Type | ----> | Is Image?           |
-|   Ingested    |       |                   |       |                     |
-+---------------+       +-------------------+       +----------+----------+
-                                                                |
-                                                                v
-                                                      +---------------------+
-                                                      | Parse Text from     |
-                                                      | Image               |
-                                                      +---------------------+
-                                                                |
-                                                                v
-                                                      +---------------------+
-                                                      | Sync with Vector    |
-                                                      | Search Index        |
-                                                      +---------------------+
 ```
 
-1. Bronze – File Ingest (`file_ingest`)
++---------------------------+       +---------------------------+       +---------------------+       +---------------------------+
+| Vector Search Setup       | ----> | File Transformations      | ----> | Vector Search Sync   | ----> | Knowledge Assistant Setup |
+| (endpoint + index config) |       | (ingest -> parse -> index)|       | (post-materialization)|      | (assistant + data source) |
++---------------------------+       +---------------------------+       +---------------------+       +---------------------------+
+```
+1. Vector Search Setup (pre-step)
+   - Ensures the Vector Search endpoint exists and is ONLINE.
+   - Ensures a Delta Sync Index is created and ready to receive data.
+
+2. Bronze – File Ingest (`file_ingest`)
    - Streams raw files from a Unity Catalog Volume (`/Volumes/<catalog>/<schema>/files`).
    - Computes a content hash.
    - Extracts MIME type and extension using Magika.
 
-2. Silver – File Parse (`file_parse`)
+3. Silver – File Parse (`file_parse`)
    - Loads binary content for image files.
    - Runs `ai_parse_document` on file content.
    - Produces structured JSON fields.
 
-3. Gold – File Index (`file_index`)
+4. Gold – File Index (`file_index`)
    - Flattens parsed document elements and pages.
    - Generates stable `search_id` values.
    - Cleans and filters text for indexing.
-   - Triggers a Vector Search delta sync index once data is materialized.
+
+5. Vector Search Sync (post-step)
+   - Triggers a Delta Sync of the index after the gold table is materialized.
+
+6. Knowledge Assistant Setup (post-step)
+   - Creates a knowledge assistant connected to the Vector Search index.
+   - Applies description and instruction text so the assistant can answer questions over ingested files.
 
 ## Vector Search
 
-- Ensures a Vector Search Endpoint exists (`<catalog>_<schema>_files_search`).
-- Maintains a Delta Sync Index that maps ingested documents to embeddings.
-- Provides semantic search for both supported text-based documents and unsupported formats like images.
-- First run warm-up: The Vector Search endpoint is created on the first run and may take several minutes to reach the ONLINE state. Index creation and the initial delta sync will not complete until the endpoint is ONLINE, so expect a delay before search becomes available.
-// ... existing code ...
+- Endpoint and index are provisioned before any transformation work starts. This ensures the sync can run immediately after gold data is available.
+- The sync step runs after indexing to populate and refresh embeddings for search.
+- First run warm-up: Endpoint creation can take several minutes to reach the ONLINE state. The initial index sync and search features become available only after the endpoint is ONLINE.
+
 
 ## Deploy
 
@@ -60,29 +77,33 @@ databricks bundle deploy --target dev --var="catalog_name=YOUR_CATALOG" --profil
   - catalog_name: Required (no default).
   - schema_name: Defaults to document_hub_dev for dev and document_hub for prod.
   - volume_name: Defaults to files.
+  - knowledge_assistant_description: Optional. Description shown for the assistant.
+  - knowledge_assistant_instructions: Optional. System instructions for how the assistant should behave.
+  - file_source_description: Optional. Description of the document source feeding the assistant.
+  - vector_search_index_description: Optional. Description for the Vector Search index.
 
 To deploy to prod:
 ```
 
 databricks bundle deploy --target prod --var="catalog_name=YOUR_CATALOG" --profile YOUR_PROFILE
 ```
-After deployment, the pipeline and volume will be created in the specified catalog/schema. The pipeline root path and other workspace paths are set by the bundle.
+After deployment, the endpoint/index, pipeline, and volume will be created in the specified catalog/schema. The pipeline root path and other workspace paths are set by the bundle.
 
 ## Run the pipeline
 
-- Start the pipeline from the Databricks UI (Workflows → Delta Live Tables) or trigger it via the associated Job (file arrival).
-- Ingest files by placing them in the provisioned Volume:
-  - Path: `/Volumes/<catalog_name>/<schema_name>/<volume_name>/`
-  - Upload via UI, DBFS CLI, or any supported client.
+- Automatic trigger: The pipeline is configured to automatically start processing when new files are added to the ingestion Volume path:
+  - `/Volumes/<catalog_name>/<schema_name>/<volume_name>/`
+- You can also start or refresh it manually from the Databricks UI (Workflows → Delta Live Tables).
 
-Note on execution:
-- Automatic kick-off: The pipeline is configured to automatically start when new files are added to the ingestion Volume path above. You can still start or refresh it manually from the UI if needed.
-- Vector Search setup time: On the first run, the Vector Search endpoint and index are provisioned. This can take several minutes; searches won’t be available until provisioning and the initial sync complete.
+Execution flow:
+- Pre-step: Vector Search endpoint and index are set up. On first run this may take several minutes; subsequent runs are faster.
+- Transform: Files are ingested (bronze), parsed (silver), and indexed (gold).
+- Post-steps: The Vector Search index is synced and the knowledge assistant is created/updated to use the latest index.
 
-Once files land in the Volume, the Bronze stream ingests them, the Silver step parses content, and the Gold step prepares and syncs the Vector Search index.
+Upload documents via the UI, DBFS CLI, or any supported client. Once files land in the Volume, ingestion begins automatically; the index is synced after gold tables are written, and the assistant is made ready to answer questions.
 
 ## Notes
 
 - Tables are created and updated via the Databricks event lifecycle (`update_progress`, `flow_progress`).
 - The pipeline can run in development or production modes with Unity Catalog governance.
-- Vector Search endpoint and index are created on first run and kept in sync by the pipeline logic.
+- Vector Search endpoint/index are provisioned before transformations, synced after, and then used to configure the knowledge assistant.

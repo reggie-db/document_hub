@@ -14,22 +14,12 @@ import dlt
 from pyspark.sql import functions as F, types as T
 from dbruntime.databricks_repl_context import get_context
 
-from common import utils, vector_search
-
-
-# ---------- configuration ----------
-NOTEBOOK_PATH = get_context().notebookPath
-FLOW_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.{os.path.splitext(os.path.basename(NOTEBOOK_PATH))[0]}"
-
-utils.logger().info("NOTEBOOK_PATH: %s", NOTEBOOK_PATH)
-utils.logger().info("FLOW_NAME: %s", FLOW_NAME)
-
-# ---------- vector search setup ----------
-vector_search.endpoint_setup()
+from common import utils, vector_search_config
 
 
 # ---------- DLT tables ----------
 @dlt.table(
+    name = vector_search_config.SOURCE_TABLE_NAME,
     table_properties={
         "quality": "gold",
         "delta.feature.variantType-preview": "supported",
@@ -107,25 +97,3 @@ def file_index():
         .drop("content")
         .filter(F.col("text").isNotNull())
     )
-
-
-# ---------- event hooks ----------
-@dlt.on_event_hook
-def file_index_on_event(event: dict) -> None:
-    """
-    Trigger delta sync index setup after the file_index flow completes.
-
-    Args:
-        event: Event dict passed by the DLT pipeline
-    """
-    try:
-        event_flow_name = event.get("origin", {}).get("flow_name")
-        if FLOW_NAME != event_flow_name:
-            return
-        event_status = event.get("details", {}).get("flow_progress", {}).get("status")
-        if "COMPLETED" != event_status:
-            return
-        vector_search.delta_sync_index_setup()
-    except Exception as e:
-        utils.logger().error("file_index_on_event error:\n%s", e)
-        raise e

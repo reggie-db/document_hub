@@ -36,6 +36,8 @@ resources:
           default: ${var.volume_name}
         - name: file
           default: ${var.volume_name}
+        - name: knowledge_assistant_sync_interval_ms
+          default: ${var.knowledge_assistant_sync_interval_ms}
         - name: knowledge_assistant_description
           default: ${var.knowledge_assistant_description}
         - name: knowledge_assistant_instructions

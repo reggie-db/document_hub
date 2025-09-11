@@ -1,6 +1,5 @@
 # Document Hub
 ## Knowledge Assistant and Lakeflow Pipeline Quickstart
-___
 
 This project defines a Databricks Lakeflow (Delta Live Tables) pipeline that ingests, parses, and indexes files for use with a knowledge assistant. It prepares structured content from supported formats (text, PDF, etc.) and leverages Databricks Vector Search to handle unsupported formats such as images.
 

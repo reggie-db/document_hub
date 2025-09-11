@@ -72,6 +72,7 @@ databricks bundle deploy --target dev --var="catalog_name=YOUR_CATALOG" --profil
   - catalog_name: Required (no default).
   - schema_name: Defaults to document_hub_dev for dev and document_hub for prod.
   - volume_name: Defaults to files.
+  - knowledge_assistant_sync_interval_ms: Optional. How often to sync the Knowledge Assistant file sources. Defaults to 23.5 hours.
   - knowledge_assistant_description: Optional. Description shown for the assistant.
   - knowledge_assistant_instructions: Optional. System instructions for how the assistant should behave.
   - file_source_description: Optional. Description of the document source feeding the assistant.

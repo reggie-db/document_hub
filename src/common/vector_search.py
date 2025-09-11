@@ -10,14 +10,13 @@ import functools
 import time
 from typing import Optional
 
-import dlt
 from common import utils
 from databricks.vector_search.client import VectorSearchClient
 from pyspark.sql import SparkSession
 
 # ---------- configuration ----------
 spark = SparkSession.builder.getOrCreate()
-SOURCE_TABLE_NAME = f"{spark.conf.get("catalog_name")}.{spark.conf.get("schema_name")}.file_index"
+SOURCE_TABLE_NAME = f"{spark.conf.get('catalog_name')}.{spark.conf.get('schema_name')}.file_index"
 ENDPOINT_NAME = utils.snake_case(SOURCE_TABLE_NAME) + "_search"
 INDEX_NAME = SOURCE_TABLE_NAME + "_search_index"
 
@@ -77,7 +76,7 @@ def delta_sync_index_setup() -> None:
             "creating vector search delta sync index: %s", INDEX_NAME
         )
         client.create_delta_sync_index_and_wait(
-            endpoint_name=ENDPOINT_NAME,
+            #endpoint_name=ENDPOINT_NAME,
             index_name=INDEX_NAME,
             source_table_name=SOURCE_TABLE_NAME,
             pipeline_type="TRIGGERED",
@@ -90,3 +89,6 @@ def delta_sync_index_setup() -> None:
         # TODO: Add conditional sync logic
         utils.logger().info("syncing vector search delta sync index:%s", index.describe())
         index.sync()
+
+if __name__ == "__main__":
+    delta_sync_index_setup()

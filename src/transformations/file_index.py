@@ -8,18 +8,15 @@ Responsibilities:
 - Trigger delta sync index updates after successful events
 """
 
-import os
-
 import dlt
-from pyspark.sql import functions as F, types as T
-from dbruntime.databricks_repl_context import get_context
-
 from common import utils, vector_search_config
+from dbruntime.databricks_repl_context import get_context
+from pyspark.sql import functions as F, types as T
 
 
 # ---------- DLT tables ----------
 @dlt.table(
-    name = vector_search_config.SOURCE_TABLE_NAME,
+    name=vector_search_config.SOURCE_TABLE_NAME,
     table_properties={
         "quality": "gold",
         "delta.feature.variantType-preview": "supported",
@@ -89,11 +86,22 @@ def file_index():
     for col_name in search_id_columns:
         search_id_exprs.append(F.coalesce(F.col(col_name).cast("string"), F.lit("_")))
 
+    def _trim_to_none(c):
+        # Collapse spaces before newlines, collapse 3+ newlines to 2, trim, then null if empty
+        x = F.trim(
+            F.regexp_replace(
+                F.regexp_replace(c, "\\s+\\n", "\n"),
+                "\\n{3,}",
+                "\n\n",
+            )
+        )
+        return F.when(F.length(x) == 0, F.lit(None)).otherwise(x)
+
     return (
         parsed_documents_item.withColumn(
             "search_id", F.sha2(F.concat_ws("|", *search_id_exprs), 256)
         )
-        .withColumn("text", utils.trim_to_none(F.col("content")))
+        .withColumn("text", _trim_to_none(F.col("content")))
         .drop("content")
         .filter(F.col("text").isNotNull())
     )

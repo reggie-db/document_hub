@@ -7,8 +7,11 @@ variables:
     default: ${bundle.name}_${bundle.target}
   volume_name:
     default: files
+  file_index
   knowledge_assistant_sync_interval_ms:
     default: 84600000
+  knowledge_assistant_name:
+    default: "${var.catalog}_${var.schema}_knowledge_assistant"
   knowledge_assistant_description:
     default: "Answer questions using files and documents ingested into Databricks, including PDFs, Word, text, images, and other documents."
   knowledge_assistant_instructions:

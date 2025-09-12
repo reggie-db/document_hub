@@ -10,10 +10,12 @@ import logging
 import re
 import sys
 from typing import Optional
-from pyspark.sql import SparkSession
-from pyspark.dbutils import DBUtils
-from pyspark.sql import functions as F, types as T
+from urllib.parse import urljoin
 
+import requests
+from pyspark.dbutils import DBUtils
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F, types as T
 
 
 def logger(name: Optional[str] = None) -> logging.Logger:
@@ -54,8 +56,7 @@ def logger(name: Optional[str] = None) -> logging.Logger:
 
 
 def config_value(name: str, default: Optional[str] = None):
-    spark = SparkSession.builder.getOrCreate()
-    dbutils = DBUtils(spark)
+    dbutils = get_dbutils()
 
     try:
         value = dbutils.widgets.get(name)
@@ -74,6 +75,88 @@ def config_value(name: str, default: Optional[str] = None):
     if default is not None:
         return default
     raise ValueError(f"Missing configuration value: {name}")
+
+
+def get_spark():
+    global_name = "spark"
+    if global_name in globals():
+        return globals()[global_name]
+    return SparkSession.builder.getOrCreate()
+
+
+def get_dbutils():
+    global_name = "dbutils"
+    if global_name in globals():
+        return globals()[global_name]
+    return DBUtils(get_spark())
+
+
+def get_notebook_context():
+    return get_dbutils().notebook.entry_point.getDbutils().notebook().getContext()
+
+
+def api_url(path: str = None) -> str:
+    url = get_notebook_context().apiUrl().get().rstrip("/")
+    if path:
+        url = urljoin(url + "/", path.lstrip("/"))
+    return url
+
+
+def api_headers() -> dict:
+    token = get_notebook_context().apiToken().get()
+    return {"Authorization": f"Bearer {token}"}
+
+
+def http_request(
+        url: str,
+        method: str = "GET",
+        headers: dict = None,
+        params: dict = None,
+        json: dict = None,
+        *acceptable_status_codes: int
+):
+    """
+    Perform an HTTP request with validation on acceptable status codes.
+
+    Args:
+        url (str): Target URL.
+        method (str, optional): HTTP method. Defaults to GET.
+        headers (dict, optional): Request headers.
+        params (dict, optional): Query parameters.
+        json (dict, optional): Request body (JSON).
+        *acceptable_status_codes (int): Acceptable HTTP status codes. Defaults to (200,).
+
+    Raises:
+        RuntimeError: If response status code is not acceptable.
+
+    Returns:
+        requests.Response: Response object.
+    """
+    if not acceptable_status_codes:
+        acceptable_status_codes = (200,)
+    elif -1 in acceptable_status_codes:
+        acceptable_status_codes = None
+
+    if not headers and url.startswith(api_url()):
+        headers = api_headers()
+
+    resp = requests.request(
+        method=method.upper(),
+        url=url,
+        headers=headers,
+        params=params,
+        json=json,
+    )
+
+    if acceptable_status_codes and resp.status_code not in acceptable_status_codes:
+        raise RuntimeError(
+            f"Unexpected status code {resp.status_code}\n"
+            f"Headers: {resp.headers}\n"
+            f"Body: {resp.text}"
+        )
+
+    return resp
+
 
 def snake_case(s: str) -> str:
     """
@@ -106,19 +189,6 @@ def os_path(path: Optional[str]) -> Optional[str]:
     if path is None:
         return None
     return re.sub(r"^dbfs:(//)?", "", path)
-
-
-@F.udf(returnType=T.StringType())
-def trim_to_none(s: Optional[str]) -> Optional[str]:
-    """
-    Normalize whitespace and newlines, trimming outer spaces.
-    Returns None if the resulting string is empty.
-    """
-    if s:
-        s = re.sub(r"\s+\n", "\n", s)
-        s = re.sub(r"\n{3,}", "\n\n", s)
-        s = s.strip()
-    return s or None
 
 
 if __name__ == "__main__":

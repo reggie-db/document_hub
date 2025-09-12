@@ -8,12 +8,12 @@ resources:
           url: /Volumes/${var.catalog_name}/${var.schema_name}/${var.volume_name}/
 
       tasks:
-        - task_key: vector_search_setup
+        - task_key: vector_search_endpoint_setup
           notebook_task:
-            notebook_path: ../src/vector_search_setup.ipynb
+            notebook_path: ../src/vector_search_endpoint_setup.ipynb
         - task_key: document_hub_pipeline
           depends_on:
-            - task_key: vector_search_setup
+            - task_key: vector_search_endpoint_setup
           pipeline_task:
             pipeline_id: ${resources.pipelines.document_hub_pipeline.id}
         - task_key: vector_search_sync

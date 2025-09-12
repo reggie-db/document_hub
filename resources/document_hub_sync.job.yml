@@ -1,0 +1,48 @@
+resources:
+  jobs:
+    document_hub_sync:
+      name: document_hub_sync
+
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalog_name}/${var.schema_name}/${var.volume_name}/
+
+      tasks:
+        - task_key: vector_search_setup
+          notebook_task:
+            notebook_path: ../src/vector_search_endpoint_setup.ipynb
+        - task_key: document_hub_pipeline
+          depends_on:
+            - task_key: vector_search_setup
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.document_hub_pipeline.id}
+        - task_key: vector_search_sync
+          depends_on:
+            - task_key: document_hub_pipeline
+          notebook_task:
+            notebook_path: ../src/vector_search_sync.ipynb
+        - task_key: knowledge_assistant_setup
+          depends_on:
+            - task_key: vector_search_sync
+          notebook_task:
+            notebook_path: ../src/knowledge_assistant_setup.ipynb
+
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: volume_name
+          default: ${var.volume_name}
+        - name: file
+          default: ${var.volume_name}
+        - name: knowledge_assistant_sync_interval_ms
+          default: ${var.knowledge_assistant_sync_interval_ms}
+        - name: knowledge_assistant_description
+          default: ${var.knowledge_assistant_description}
+        - name: knowledge_assistant_instructions
+          default: ${var.knowledge_assistant_instructions}
+        - name: file_source_description
+          default: ${var.file_source_description}
+        - name: vector_search_index_description
+          default: ${var.vector_search_index_description}

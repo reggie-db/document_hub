@@ -13,6 +13,7 @@ resources:
         dependencies:
           - databricks-vectorsearch
           - magika
+          - resvg_py
       configuration:
         catalog_name: ${var.catalog_name}
         schema_name: ${var.schema_name}

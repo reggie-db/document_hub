@@ -129,23 +129,23 @@ def convert_content_udf(path: pd.Series, mime_type: pd.Series) -> pd.DataFrame:
     """
 
     def _content(p: str, m: str):
+        content: Optional[bytes] = None
         try:
             with open(p, "rb") as fh:
                 content = fh.read()
-            converted = False
-            mt = MimeType.from_str(m)
-            converted_bytes = convert_content(mt, content)
-            if converted_bytes != content:
-                converted = True
-                content = converted_bytes
-            return content, converted
+            mime_type = MimeType.from_str(m)
+            if mime_type:
+                converted_bytes = convert_content(mime_type, content)
+                if content != converted_bytes:
+                    return converted_bytes, True
         except Exception as e:
             LOG.warning(f"content read failed - path:{p} mime_type:{m}", e)
-            return None, False
+        return content, False
 
     rows = [_content(p, m) for p, m in zip(path, mime_type)]
     return pd.DataFrame(rows, columns=convert_content_udf_schema.fieldNames())
-    
+
+
 # ---------- DLT tables ----------
 @dlt.table(
     table_properties={
@@ -167,11 +167,21 @@ def file_parse():
         spark.readStream.table("file_ingest")
         .filter(FILE_FILTER)
         .withColumn(
-            "content", content_udf(utils.os_path(F.col("path")), F.col("mime_type"))
+            "convert_content",
+            convert_content_udf(utils.os_path(F.col("path")), F.col("mime_type")),
         )
         .withColumn(
-            "parsed", F.expr("ai_parse_document(content, map('version','1.0'))")
+            "parsed",
+            F.expr("ai_parse_document(convert_content.content, map('version','1.0'))"),
         )
-        .drop("content")
-        .select("content_hash", "path", "parsed")
+        .withColumn(
+            "converted_content",
+            F.when(F.col("convert_content.converted"), F.col("convert_content.content")),
+        )
+        .select(
+            "content_hash",
+            "path",
+            "parsed",
+            "converted_content",
+        )
     )

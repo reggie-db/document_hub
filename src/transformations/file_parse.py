@@ -19,6 +19,7 @@ import dlt
 
 # ---------- TYPES ----------
 
+
 class MimeType(NamedTuple):
     """
     Parsed MIME type.
@@ -45,7 +46,9 @@ class MimeType(NamedTuple):
         if len(value_parts) > 2:
             return None
         return cls(
-            value, value_parts[0].lower(), value_parts[1].lower() if len(value_parts) > 1 else ""
+            value,
+            value_parts[0].lower(),
+            value_parts[1].lower() if len(value_parts) > 1 else "",
         )
 
 
@@ -54,7 +57,7 @@ ContentConverter = Callable[[MimeType, bytes], Optional[bytes]]
 
 
 # ---------- CONFIGURATIONS ----------
-LOG=utils.logger()
+LOG = utils.logger()
 FILE_FILTER = F.col("mime_type").like("image/%")
 
 CONTENT_CONVERTERS: Dict[MimeTypePredicate, ContentConverter] = {}
@@ -93,7 +96,9 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
 
 
 @F.pandas_udf(T.BinaryType())
-def content_udf(it: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
+def content_udf(
+    path_it: Iterator[pd.Series], mime_it: Iterator[pd.Series]
+) -> Iterator[pd.Series]:
     """
     Vectorized Pandas UDF that reads file bytes from local paths and applies MIME aware conversion.
 
@@ -111,22 +116,17 @@ def content_udf(it: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
         pandas Series of bytes suitable for a BinaryType column.
     """
 
-    def _content(path: str, mime: str) -> bytes | None:
+    def _content(path: str, mime: str):
         try:
             with open(path, "rb") as fh:
                 content = fh.read()
-                return convert_content(MimeType.from_str(mime), content)
+            return convert_content(MimeType.from_str(mime), content)
         except Exception as e:
-            LOG.warning(
-                f"content read failed - path:{path} mime_type:{mime}",
-                e,
-            )
+            LOG.warning(f"content read failed - path:{path} mime_type:{mime}", e)
             return None
 
-    for pdf in it:
-        yield pd.Series(
-            [_content(path, mime) for path, mime in zip(pdf["path"], pdf["mime_type"])]
-        )
+    for paths, mimes in zip(path_it, mime_it):
+        yield pd.Series([_content(p, m) for p, m in zip(paths, mimes)])
 
 
 # ---------- DLT tables ----------
@@ -149,9 +149,7 @@ def file_parse():
     return (
         spark.readStream.table("file_ingest")
         .filter(FILE_FILTER)
-        .withColumn(
-            "content", content_udf(utils.os_path(F.col("path")), F.col("mime_type"))
-        )
+        .withColumn("content", content_udf(F.col("path"), F.col("mime_type")))
         .withColumn(
             "parsed", F.expr("ai_parse_document(content, map('version','1.0'))")
         )

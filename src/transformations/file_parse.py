@@ -96,9 +96,7 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
 
 
 @F.pandas_udf(T.BinaryType())
-def content_udf(
-    path_it: Iterator[pd.Series], mime_it: Iterator[pd.Series]
-) -> Iterator[pd.Series]:
+def content_udf(path: pd.Series, mime_type: pd.Series) -> pd.Series:
     """
     Vectorized Pandas UDF that reads file bytes from local paths and applies MIME aware conversion.
 
@@ -116,17 +114,16 @@ def content_udf(
         pandas Series of bytes suitable for a BinaryType column.
     """
 
-    def _content(path: str, mime: str):
+    def _content(p: str, m: str):
         try:
-            with open(path, "rb") as fh:
+            with open(p, "rb") as fh:
                 content = fh.read()
-            return convert_content(MimeType.from_str(mime), content)
+            return convert_content(MimeType.from_str(m), content)
         except Exception as e:
-            LOG.warning(f"content read failed - path:{path} mime_type:{mime}", e)
+            LOG.warning(f"content read failed - path:{p} mime_type:{m}", e)
             return None
 
-    for paths, mimes in zip(path_it, mime_it):
-        yield pd.Series([_content(p, m) for p, m in zip(paths, mimes)])
+    return pd.Series([_content(p, m) for p, m in zip(path, mime_type)])
 
 
 # ---------- DLT tables ----------
@@ -149,7 +146,9 @@ def file_parse():
     return (
         spark.readStream.table("file_ingest")
         .filter(FILE_FILTER)
-        .withColumn("content", content_udf(F.col("path"), F.col("mime_type")))
+        .withColumn(
+            "content", content_udf(utils.os_path(F.col("path")), F.col("mime_type"))
+        )
         .withColumn(
             "parsed", F.expr("ai_parse_document(content, map('version','1.0'))")
         )

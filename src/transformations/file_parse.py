@@ -53,8 +53,8 @@ MimeTypePredicate = Callable[[MimeType], bool]
 ContentConverter = Callable[[MimeType, bytes], Optional[bytes]]
 
 
-# ---------- PARSE CONFIGURATIONS ----------
-
+# ---------- CONFIGURATIONS ----------
+LOG=utils.logger()
 FILE_FILTER = F.col("mime_type").like("image/%")
 
 CONTENT_CONVERTERS: Dict[MimeTypePredicate, ContentConverter] = {}
@@ -79,7 +79,7 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
             if predicate(mime_type):
                 content = converter(mime_type, content)
         except Exception as e:
-            utils.logger().warning(
+            LOG.warning(
                 f"content coversion failed - mime_type:{mime_type} converter:{converter}",
                 e,
             )
@@ -117,7 +117,7 @@ def content_udf(it: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
                 content = fh.read()
                 return convert_content(MimeType.from_str(mime), content)
         except Exception as e:
-            utils.logger().warning(
+            LOG.warning(
                 f"content read failed - path:{path} mime_type:{mime}",
                 e,
             )

@@ -61,9 +61,19 @@ LOG = utils.logger()
 FILE_FILTER = F.col("mime_type").like("image/%")
 
 CONTENT_CONVERTERS: Dict[MimeTypePredicate, ContentConverter] = {}
+
+
+def _svg_to_png(mime_type: MimeType, content: bytes) -> Optional[bytes]:
+    print("svg_to_png")
+    print(content)
+    print("svg_to_png decode")
+    print(content.decode("utf-8"))
+    return resvg_py.svg_to_bytes(svg_string=content.decode("utf-8"))
+
+
 CONTENT_CONVERTERS[
     lambda mime: mime.type == "image" and mime.subtype.startswith("svg")
-] = lambda _, content: resvg_py.svg_to_bytes(svg_string=content.decode("utf-8"))
+] = _svg_to_png
 
 
 def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
@@ -79,8 +89,16 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
     """
     for predicate, converter in CONTENT_CONVERTERS.items():
         try:
-            if predicate(mime_type):
-                content = converter(mime_type, content)
+            if not predicate(mime_type):
+                continue
+        except Exception as e:
+            LOG.warning(
+                f"content predicate failed - mime_type:{mime_type} converter:{converter}",
+                e,
+            )
+            continue
+        try:
+            content = converter(mime_type, content)
         except Exception as e:
             LOG.warning(
                 f"content coversion failed - mime_type:{mime_type} converter:{converter}",
@@ -95,37 +113,39 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
 # ---------- UDFs ----------
 
 
-@F.pandas_udf(T.BinaryType())
-def content_udf(path: pd.Series, mime_type: pd.Series) -> pd.Series:
+convert_content_udf_schema = T.StructType(
+    [
+        T.StructField("content", T.BinaryType()),
+        T.StructField("converted", T.BooleanType()),
+    ]
+)
+
+
+@F.pandas_udf(convert_content_udf_schema)
+def convert_content_udf(path: pd.Series, mime_type: pd.Series) -> pd.DataFrame:
     """
-    Vectorized Pandas UDF that reads file bytes from local paths and applies MIME aware conversion.
-
-    Input batches:
-        pandas DataFrame with columns:
-            path: string path to a local file on the worker
-            mime_type: MIME string such as "image/svg+xml" or "image/png"
-
-    Behavior:
-        Reads each path into bytes.
-        If mime_type indicates SVG, converts to PNG bytes using resvg_py.
-        Otherwise returns the original bytes.
-
-    Output:
-        pandas Series of bytes suitable for a BinaryType column.
+    UDF that reads file bytes and converts SVG → PNG.
+    Returns a struct with content (bytes) and converted (bool).
     """
 
     def _content(p: str, m: str):
         try:
             with open(p, "rb") as fh:
                 content = fh.read()
-            return convert_content(MimeType.from_str(m), content)
+            converted = False
+            mt = MimeType.from_str(m)
+            converted_bytes = convert_content(mt, content)
+            if converted_bytes != content:
+                converted = True
+                content = converted_bytes
+            return content, converted
         except Exception as e:
             LOG.warning(f"content read failed - path:{p} mime_type:{m}", e)
-            return None
+            return None, False
 
-    return pd.Series([_content(p, m) for p, m in zip(path, mime_type)])
-
-
+    rows = [_content(p, m) for p, m in zip(path, mime_type)]
+    return pd.DataFrame(rows, columns=convert_content_udf_schema.fieldNames())
+    
 # ---------- DLT tables ----------
 @dlt.table(
     table_properties={

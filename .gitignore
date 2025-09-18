@@ -231,3 +231,5 @@ out/
 
 # Cursor editor
 .cursor/
+
+*dev-local*

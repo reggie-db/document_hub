@@ -8,14 +8,17 @@ Responsibilities:
 • Produce a structured silver level Delta table
 """
 
-from typing import Dict, Callable, NamedTuple, Optional
-from typing import Iterator
+
+from typing import Dict, Callable, NamedTuple, Optional, Tuple
 from common import utils
 import pandas as pd
 from pyspark.sql import functions as F, types as T
 import resvg_py
 
-import dlt
+try:
+    import dlt
+except ImportError:
+    pass
 
 # ---------- TYPES ----------
 
@@ -62,18 +65,10 @@ FILE_FILTER = F.col("mime_type").like("image/%")
 
 CONTENT_CONVERTERS: Dict[MimeTypePredicate, ContentConverter] = {}
 
-
-def _svg_to_png(mime_type: MimeType, content: bytes) -> Optional[bytes]:
-    print("svg_to_png")
-    print(content)
-    print("svg_to_png decode")
-    print(content.decode("utf-8"))
-    return resvg_py.svg_to_bytes(svg_string=content.decode("utf-8"))
-
-
+# SVG to PNG
 CONTENT_CONVERTERS[
     lambda mime: mime.type == "image" and mime.subtype.startswith("svg")
-] = _svg_to_png
+] = lambda mime_type, content: resvg_py.svg_to_bytes(svg_string=content.decode("utf-8"))
 
 
 def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
@@ -110,6 +105,22 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
     return content
 
 
+def convert_content_path(mime_type: str, path: str) -> Tuple[bytes, bool]:
+    content: Optional[bytes] = None
+    try:
+        with open(path, "rb") as fh:
+            content = fh.read()
+    except Exception as e:
+        LOG.warning(f"content read failed - path:{path} mime_type:{mime_type}", e)
+    if content:
+        mt = MimeType.from_str(mime_type)
+        if mt:
+            converted_bytes = convert_content(mt, content)
+            if content != converted_bytes:
+                return converted_bytes, True
+    return content, False
+
+
 # ---------- UDFs ----------
 
 
@@ -128,60 +139,67 @@ def convert_content_udf(path: pd.Series, mime_type: pd.Series) -> pd.DataFrame:
     Returns a struct with content (bytes) and converted (bool).
     """
 
-    def _content(p: str, m: str):
-        content: Optional[bytes] = None
-        try:
-            with open(p, "rb") as fh:
-                content = fh.read()
-            mime_type = MimeType.from_str(m)
-            if mime_type:
-                converted_bytes = convert_content(mime_type, content)
-                if content != converted_bytes:
-                    return converted_bytes, True
-        except Exception as e:
-            LOG.warning(f"content read failed - path:{p} mime_type:{m}", e)
-        return content, False
-
-    rows = [_content(p, m) for p, m in zip(path, mime_type)]
+    rows = [convert_content_path(m, p) for p, m in zip(path, mime_type)]
     return pd.DataFrame(rows, columns=convert_content_udf_schema.fieldNames())
 
 
-# ---------- DLT tables ----------
-@dlt.table(
-    table_properties={
-        "quality": "silver",
-        "delta.feature.variantType-preview": "supported",
-    },
-)
-def file_parse():
-    """
-    Stream image files from the bronze table, parse them, and write silver table.
-
-    Returns:
-        A streaming DataFrame with:
-            content_hash: file content hash
-            path: original file path
-            parsed: structured content from ai_parse_document
-    """
-    return (
-        spark.readStream.table("file_ingest")
-        .filter(FILE_FILTER)
-        .withColumn(
-            "convert_content",
-            convert_content_udf(utils.os_path(F.col("path")), F.col("mime_type")),
-        )
-        .withColumn(
-            "parsed",
-            F.expr("ai_parse_document(convert_content.content, map('version','1.0'))"),
-        )
-        .withColumn(
-            "converted_content",
-            F.when(F.col("convert_content.converted"), F.col("convert_content.content")),
-        )
-        .select(
-            "content_hash",
-            "path",
-            "parsed",
-            "converted_content",
-        )
+if False:
+    # ---------- DLT tables ----------
+    @dlt.table(
+        table_properties={
+            "quality": "silver",
+            "delta.feature.variantType-preview": "supported",
+        },
     )
+    def file_parse():
+        """
+        Stream image files from the bronze table, parse them, and write silver table.
+
+        Returns:
+            A streaming DataFrame with:
+                content_hash: file content hash
+                path: original file path
+                parsed: structured content from ai_parse_document
+        """
+        return (
+            spark.readStream.table("file_ingest")
+            .filter(FILE_FILTER)
+            .withColumn(
+                "convert_content",
+                convert_content_udf(utils.os_path(F.col("path")), F.col("mime_type")),
+            )
+            .withColumn(
+                "parsed",
+                F.expr(
+                    "ai_parse_document(convert_content.content, map('version','1.0'))"
+                ),
+            )
+            .withColumn(
+                "converted_content",
+                F.when(
+                    F.col("convert_content.converted"), F.col("convert_content.content")
+                ),
+            )
+            .select(
+                "content_hash",
+                "path",
+                "parsed",
+                "converted_content",
+            )
+        )
+
+
+if __name__ == "__main__":
+    import tempfile
+    from pathlib import Path
+
+    # Call your converter
+    content_bytes, converted = convert_content_path("image/svg+xml", "dev-local/infographic_3.svg")
+
+    # Write the bytes to a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png" if converted else ".bin") as tmp:
+        tmp.write(content_bytes)
+        tmp_path = Path(tmp.name)
+
+    print(f"Temporary file written to: {tmp_path}")
+

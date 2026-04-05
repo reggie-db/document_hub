@@ -8,17 +8,12 @@ Responsibilities:
 • Produce a structured silver level Delta table
 """
 
-
 from typing import Dict, Callable, NamedTuple, Optional, Tuple
 from common import utils
 import pandas as pd
 from pyspark.sql import functions as F, types as T
 import resvg_py
-
-try:
-    import dlt
-except ImportError:
-    pass
+import dlt
 
 # ---------- TYPES ----------
 
@@ -93,15 +88,13 @@ def convert_content(mime_type: MimeType, content: bytes) -> Optional[bytes]:
             )
             continue
         try:
-            content = converter(mime_type, content)
+            return converter(mime_type, content)
         except Exception as e:
             LOG.warning(
                 f"content coversion failed - mime_type:{mime_type} converter:{converter}",
                 e,
             )
             pass
-        if not content:
-            break
     return content
 
 
@@ -143,63 +136,44 @@ def convert_content_udf(path: pd.Series, mime_type: pd.Series) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=convert_content_udf_schema.fieldNames())
 
 
-if False:
-    # ---------- DLT tables ----------
-    @dlt.table(
-        table_properties={
-            "quality": "silver",
-            "delta.feature.variantType-preview": "supported",
-        },
-    )
-    def file_parse():
-        """
-        Stream image files from the bronze table, parse them, and write silver table.
+# ---------- DLT tables ----------
+@dlt.table(
+    table_properties={
+        "quality": "silver",
+        "delta.feature.variantType-preview": "supported",
+    },
+)
+def file_parse():
+    """
+    Stream image files from the bronze table, parse them, and write silver table.
 
-        Returns:
-            A streaming DataFrame with:
-                content_hash: file content hash
-                path: original file path
-                parsed: structured content from ai_parse_document
-        """
-        return (
-            spark.readStream.table("file_ingest")
-            .filter(FILE_FILTER)
-            .withColumn(
-                "convert_content",
-                convert_content_udf(utils.os_path(F.col("path")), F.col("mime_type")),
-            )
-            .withColumn(
-                "parsed",
-                F.expr(
-                    "ai_parse_document(convert_content.content, map('version','1.0'))"
-                ),
-            )
-            .withColumn(
-                "converted_content",
-                F.when(
-                    F.col("convert_content.converted"), F.col("convert_content.content")
-                ),
-            )
-            .select(
-                "content_hash",
-                "path",
-                "parsed",
-                "converted_content",
-            )
+    Returns:
+        A streaming DataFrame with:
+            content_hash: file content hash
+            path: original file path
+            parsed: structured content from ai_parse_document
+    """
+    return (
+        spark.readStream.table("file_ingest")
+        .filter(FILE_FILTER)
+        .withColumn(
+            "convert_content",
+            convert_content_udf(utils.os_path(F.col("path")), F.col("mime_type")),
         )
-
-
-if __name__ == "__main__":
-    import tempfile
-    from pathlib import Path
-
-    # Call your converter
-    content_bytes, converted = convert_content_path("image/svg+xml", "dev-local/infographic_3.svg")
-
-    # Write the bytes to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png" if converted else ".bin") as tmp:
-        tmp.write(content_bytes)
-        tmp_path = Path(tmp.name)
-
-    print(f"Temporary file written to: {tmp_path}")
-
+        .withColumn(
+            "parsed",
+            F.expr("ai_parse_document(convert_content.content, map('version','1.0'))"),
+        )
+        .withColumn(
+            "converted_content",
+            F.when(
+                F.col("convert_content.converted"), F.col("convert_content.content")
+            ),
+        )
+        .select(
+            "content_hash",
+            "path",
+            "parsed",
+            "converted_content",
+        )
+    )
